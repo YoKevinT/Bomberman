@@ -34,7 +34,8 @@ using System;
 
 public class Player : MonoBehaviour
 {
-    public GlobalStateManager globalManager;
+    public KeyCode upKey, downKey, leftKey, rightKey; //Movement
+    public KeyCode dropBombKey; //Actions
 
     //Player parameters
     [Range(1, 2)] //Enables a nifty slider in the editor
@@ -45,6 +46,7 @@ public class Player : MonoBehaviour
     public bool canDropBombs = true;
     //Can the player move?
     public bool canMove = true;
+    //Is this player dead?
     public bool dead = false;
     //Amount of bombs the player has left to drop, gets decreased as the player
     //drops a bomb, increases as an owned bomb explodes
@@ -56,7 +58,6 @@ public class Player : MonoBehaviour
     private Transform myTransform;
     private Animator animator;
 
-    // Use this for initialization
     void Start()
     {
         //Cache the attached components for better performance and less typing
@@ -65,131 +66,88 @@ public class Player : MonoBehaviour
         animator = myTransform.Find("PlayerModel").GetComponent<Animator>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        UpdateMovement();
-    }
+        bool up = Input.GetKey(upKey);
+        bool down = Input.GetKey(downKey);
+        bool left = Input.GetKey(leftKey);
+        bool right = Input.GetKey(rightKey);
 
-    private void UpdateMovement()
-    {
-        animator.SetBool("Walking", false);
+        //Move Player based on Input Keys
+        Move(up, down, left, right);
 
-        if (!canMove)
-        { //Return if player can't move
-            return;
-        }
-
-        //Depending on the player number, use different input for moving
-        if (playerNumber == 1)
+        //If the Player can drop bombs AND bomb key was pressed
+        if (canDropBombs && Input.GetKeyDown(dropBombKey))
         {
-            UpdatePlayer1Movement();
-        }
-        else
-        {
-            UpdatePlayer2Movement();
+            //Drop bomb
+            DropBomb();
         }
     }
 
     /// <summary>
     /// Updates Player 1's movement and facing rotation using the WASD keys and drops bombs using Space
     /// </summary>
-    private void UpdatePlayer1Movement()
+    public void Move(bool up, bool down, bool left, bool right)
     {
-        if (Input.GetKey(KeyCode.W))
-        { //Up movement
+        //Update Animator to Input Logic
+        animator.SetBool("Walking", up || down || left || right);
+
+        //If the character shouldn't move
+        if(!canMove)
+        {
+            //Exit the Move Function
+            return;
+        }
+
+        //Up Movement
+        if (up)
+        { 
             rigidBody.velocity = new Vector3(rigidBody.velocity.x, rigidBody.velocity.y, moveSpeed);
             myTransform.rotation = Quaternion.Euler(0, 0, 0);
-            animator.SetBool("Walking", true);
         }
 
-        if (Input.GetKey(KeyCode.A))
-        { //Left movement
+        //Left Movement
+        if (left)
+        { 
             rigidBody.velocity = new Vector3(-moveSpeed, rigidBody.velocity.y, rigidBody.velocity.z);
             myTransform.rotation = Quaternion.Euler(0, 270, 0);
-            animator.SetBool("Walking", true);
         }
 
-        if (Input.GetKey(KeyCode.S))
-        { //Down movement
+        //Down Movement
+        if (down)
+        { 
             rigidBody.velocity = new Vector3(rigidBody.velocity.x, rigidBody.velocity.y, -moveSpeed);
             myTransform.rotation = Quaternion.Euler(0, 180, 0);
-            animator.SetBool("Walking", true);
         }
 
-        if (Input.GetKey(KeyCode.D))
-        { //Right movement
+        //Right Movement
+        if (right)
+        { 
             rigidBody.velocity = new Vector3(moveSpeed, rigidBody.velocity.y, rigidBody.velocity.z);
             myTransform.rotation = Quaternion.Euler(0, 90, 0);
-            animator.SetBool("Walking", true);
-        }
-
-        if (canDropBombs && Input.GetKeyDown(KeyCode.Space))
-        { //Drop bomb
-            DropBomb();
         }
     }
-
-    /// <summary>
-    /// Updates Player 2's movement and facing rotation using the arrow keys and drops bombs using Enter or Return
-    /// </summary>
-    private void UpdatePlayer2Movement()
-    {
-        if (Input.GetKey(KeyCode.UpArrow))
-        { //Up movement
-            rigidBody.velocity = new Vector3(rigidBody.velocity.x, rigidBody.velocity.y, moveSpeed);
-            myTransform.rotation = Quaternion.Euler(0, 0, 0);
-            animator.SetBool("Walking", true);
-        }
-
-        if (Input.GetKey(KeyCode.LeftArrow))
-        { //Left movement
-            rigidBody.velocity = new Vector3(-moveSpeed, rigidBody.velocity.y, rigidBody.velocity.z);
-            myTransform.rotation = Quaternion.Euler(0, 270, 0);
-            animator.SetBool("Walking", true);
-        }
-
-        if (Input.GetKey(KeyCode.DownArrow))
-        { //Down movement
-            rigidBody.velocity = new Vector3(rigidBody.velocity.x, rigidBody.velocity.y, -moveSpeed);
-            myTransform.rotation = Quaternion.Euler(0, 180, 0);
-            animator.SetBool("Walking", true);
-        }
-
-        if (Input.GetKey(KeyCode.RightArrow))
-        { //Right movement
-            rigidBody.velocity = new Vector3(moveSpeed, rigidBody.velocity.y, rigidBody.velocity.z);
-            myTransform.rotation = Quaternion.Euler(0, 90, 0);
-            animator.SetBool("Walking", true);
-        }
-
-        if (canDropBombs && (Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Return)))
-        { //Drop Bomb. For Player 2's bombs, allow both the numeric enter as the return key or players 
-            //without a numpad will be unable to drop bombs
-            DropBomb();
-        }
-    }
-
     /// <summary>
     /// Drops a bomb beneath the player
     /// </summary>
-    private void DropBomb()
+    public void DropBomb()
     {
         if (bombPrefab)
-        { //Check if bomb prefab is assigned first
+        { 
+            //Check if bomb prefab is assigned first
             Instantiate(bombPrefab, new Vector3(Mathf.RoundToInt(myTransform.position.x), bombPrefab.transform.position.y, Mathf.RoundToInt(myTransform.position.z)), bombPrefab.transform.rotation);
         }
     }
 
     public void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Explosion"))
+        //Not dead & hit by explosion
+        if (!dead && other.CompareTag("Explosion"))
         {
-            dead = true; // 1
-            globalManager.PlayerDied(playerNumber); // 2
-            Destroy(gameObject); // 3
-
             Debug.Log("P" + playerNumber + " hit by explosion!");
+            dead = true;
+            GameManager.Instance.PlayerDied(playerNumber); //Notify global state manager that this player died
+            Destroy(gameObject);
         }
     }
 }
